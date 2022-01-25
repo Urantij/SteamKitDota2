@@ -1,6 +1,6 @@
 using SteamKit2;
 
-namespace SteamKitDota2.Callbacks
+namespace SteamKitDota2
 {
     public partial class SteamDota
     {

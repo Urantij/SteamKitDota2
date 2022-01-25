@@ -2,7 +2,6 @@ using SteamKit2;
 using SteamKit2.GC;
 using SteamKit2.GC.Dota.Internal;
 using SteamKit2.Internal;
-using static SteamKitDota2.Callbacks.SteamDota;
 
 namespace SteamKitDota2
 {
