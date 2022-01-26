@@ -1,7 +1,6 @@
 using SteamKit2;
-using SteamKitDota2.Models;
 
-namespace SteamKitDota2
+namespace SteamKitDota2.Web
 {
     //https://github.com/SteamRE/SteamKit/blob/master/Samples/6.WebAPI/Program.cs
     public partial class DotaApi : IDisposable

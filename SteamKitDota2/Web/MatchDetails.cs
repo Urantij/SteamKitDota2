@@ -1,7 +1,7 @@
 using System.Collections;
 using SteamKit2;
 
-namespace SteamKitDota2.Models
+namespace SteamKitDota2.Web
 {
     public partial class DotaApi
     {
