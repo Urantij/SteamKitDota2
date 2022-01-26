@@ -4,7 +4,7 @@ using SteamKitDota2.Models;
 namespace SteamKitDota2
 {
     //https://github.com/SteamRE/SteamKit/blob/master/Samples/6.WebAPI/Program.cs
-    public class DotaApi : IDisposable
+    public partial class DotaApi : IDisposable
     {
         readonly WebAPI.AsyncInterface matchInterface;
 
