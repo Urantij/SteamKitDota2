@@ -232,10 +232,10 @@ namespace SteamKitDota2
         {
             /* воркер запускается, если хуйня была только запущена, или если она была реди и перестала
              * В любом случае, двух воркеров быть не должно. реди хуйня отменяется, запуск хуйни это сессия и она отменяется */
-            helloWorkerCancellationSource = new();
+            var source = helloWorkerCancellationSource = new();
             try
             {
-                using var workerCancellationSource = CancellationTokenSource.CreateLinkedTokenSource(helloWorkerCancellationSource.Token, cancellationToken);
+                using var workerCancellationSource = CancellationTokenSource.CreateLinkedTokenSource(source.Token, cancellationToken);
 
                 try { await Task.Delay(1000, workerCancellationSource.Token); } catch { return; }
 
@@ -264,8 +264,12 @@ namespace SteamKitDota2
             }
             finally
             {
-                helloWorkerCancellationSource.Dispose();
-                helloWorkerCancellationSource = null;
+                //А вообще, он, случаем, не всегда нулл тут будет?
+                if (source == helloWorkerCancellationSource)
+                {
+                    helloWorkerCancellationSource.Dispose();
+                    helloWorkerCancellationSource = null;
+                }
             }
         }
     }
