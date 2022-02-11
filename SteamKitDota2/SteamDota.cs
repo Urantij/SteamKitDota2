@@ -272,5 +272,15 @@ namespace SteamKitDota2
                 }
             }
         }
+    
+        public static ulong GetSteamID64(uint steamID32)
+        {
+            return steamID32 + (ulong)76561197960265728;
+        }
+
+        public static uint GetSteamID32(ulong steamID64)
+        {
+            return (uint)(steamID64 - 76561197960265728);
+        }
     }
 }
