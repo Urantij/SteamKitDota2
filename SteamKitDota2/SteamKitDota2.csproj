@@ -3,6 +3,13 @@
     <TargetFramework>net6.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <Version>1.0.0</Version>
+    <Description>
+      Dota2 Handler для SteamKit
+    </Description>
+    <Authors>Urantij</Authors>
+    <RepositoryUrl>https://github.com/Urantij/SteamKitDota2</RepositoryUrl>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="SteamKit2" Version="2.4.1"/>
