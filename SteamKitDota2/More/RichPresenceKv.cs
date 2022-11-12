@@ -8,6 +8,7 @@ public class RichPresenceKv
 
     /// <summary>
     /// "#DOTA_RP_PLAYING_AS"
+    /// "#DOTA_RP_INIT", "#DOTA_RP_IDLE", "#DOTA_RP_SPECTATING", "#DOTA_RP_FINDING_MATCH", "#DOTA_RP_GAME_IN_PROGRESS_CUSTOM"
     /// </summary>
     public string? status;
     /// <summary>
@@ -15,6 +16,9 @@ public class RichPresenceKv
     /// </summary>
     public string? steam_display;
 
+    /// <summary>
+    /// Также известный как LobbyId
+    /// </summary>
     public ulong? watchableGameId;
 
     public string? partyValue;

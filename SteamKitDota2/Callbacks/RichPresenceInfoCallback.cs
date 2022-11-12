@@ -5,6 +5,9 @@ namespace SteamKitDota2;
 
 public partial class SteamDota
 {
+    /// <summary>
+    /// Для получения полезной информации можно использовать <see cref="SteamKitDota2.More.RichPresenceKv"/>
+    /// </summary>
     public class RichPresenceInfoCallback : CallbackMsg
     {
         public readonly CMsgClientRichPresenceInfo response;

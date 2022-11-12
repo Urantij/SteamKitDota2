@@ -57,12 +57,9 @@ public partial class SteamDota
         return job;
     }
 
-    /// <summary>
-    /// Spectate
-    /// </summary>
     /// <param name="steamId">SteamID64</param>
     /// <param name="live">Dota plus feature to watch the game without 5min delay</param>
-    public AsyncJob<SpectateCallback> Spectate(ulong steamId, bool live)
+    public AsyncJob<SpectateCallback> RequestSpectateFriendGame(ulong steamId, bool live)
     {
         var protobuf = new ClientGCMsgProtobuf<CMsgSpectateFriendGame>((uint)EDOTAGCMsg.k_EMsgGCSpectateFriendGame)
         {
