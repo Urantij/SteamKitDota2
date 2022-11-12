@@ -9,29 +9,30 @@ namespace SteamKitDota2;
 
 public partial class SteamDota
 {
-    //по какой то причине запрос сурс тв во первых даёт 2 ответа, один нужный один просто 10 игр, а во вторых жоб айди там непонятно какой
-    //но ловить то хочется
-    JobID? specificSourceTvJobId = null;
-    JobID? sourceTvJobId = null;
+    // Эти протобафы не поддерживают установку JobId
+    // Они всегда будет возвращать дефолтное значение - 18446744073709551615
+    // Но AsyncJob нуждает в JobId. Поэтому при старте назначу им айди.
+    // При этом RequestSpecificSourceTvGames возвращает 2 ответа. Один нужный и один общий.
+    readonly JobID SpecificSourceTvGamesJobId;
+    readonly JobID SourceTvGamesJobId;
 
     /// <summary>
     /// Максимум 10 результатов?
     /// 9 ммр бот подаёт 20.
     /// Нельзя вызывать несколько таких методов одновременно.
+    /// <see cref="RequestSpecificSourceTvGames"/>
+    /// <see cref="RequestSourceTvGames"/>
     /// </summary>
     /// <param name="lobbyIds">SteamId64</param>
     /// <returns></returns>
     public AsyncJob<SourceTvGamesCallback> RequestSpecificSourceTvGames(params ulong[] lobbyIds)
     {
-        var protobuf = new ClientGCMsgProtobuf<CMsgClientToGCFindTopSourceTVGames>((uint)EDOTAGCMsg.k_EMsgClientToGCFindTopSourceTVGames)
-        {
-            SourceJobID = Client.GetNextJobID() // Не работает с этим протобафом. рыли.
-        };
+        var protobuf = new ClientGCMsgProtobuf<CMsgClientToGCFindTopSourceTVGames>((uint)EDOTAGCMsg.k_EMsgClientToGCFindTopSourceTVGames);
+
         protobuf.Body.lobby_ids.AddRange(lobbyIds);
         protobuf.Body.start_game = 0;
 
-        var job = new AsyncJob<SourceTvGamesCallback>(Client, protobuf.SourceJobID);
-        specificSourceTvJobId = job.JobID;
+        var job = new AsyncJob<SourceTvGamesCallback>(Client, SpecificSourceTvGamesJobId);
 
         gameCoordinator.Send(protobuf, dotaAppId);
 
@@ -40,18 +41,16 @@ public partial class SteamDota
 
     /// <summary>
     /// Нельзя вызывать несколько таких методов одновременно.
+    /// <see cref="RequestSpecificSourceTvGames"/>
+    /// <see cref="RequestSourceTvGames"/>
     /// </summary>
     /// <returns></returns>
     public AsyncJob<SourceTvGamesCallback> RequestSourceTvGames()
     {
-        var protobuf = new ClientGCMsgProtobuf<CMsgClientToGCFindTopSourceTVGames>((uint)EDOTAGCMsg.k_EMsgClientToGCFindTopSourceTVGames)
-        {
-            SourceJobID = Client.GetNextJobID() // Не работает с этим протобафом. рыли.
-        };
+        var protobuf = new ClientGCMsgProtobuf<CMsgClientToGCFindTopSourceTVGames>((uint)EDOTAGCMsg.k_EMsgClientToGCFindTopSourceTVGames);
         protobuf.Body.start_game = 0;
 
-        var job = new AsyncJob<SourceTvGamesCallback>(Client, protobuf.SourceJobID);
-        sourceTvJobId = job.JobID;
+        var job = new AsyncJob<SourceTvGamesCallback>(Client, SourceTvGamesJobId);
 
         gameCoordinator.Send(protobuf, dotaAppId);
 
@@ -119,27 +118,18 @@ public partial class SteamDota
         // Кансер, но что поделать.
         if (response.Body.specific_games)
         {
-            // Хотел, шобы оно подписывалось само, но хз, как отписаться, если таймаут задачи произошёл.
-            // Без превращения асинкжоба в таск
-            var callback = new SourceTvGamesCallback(response.Body);
-            if (specificSourceTvJobId != null)
+            var callback = new SourceTvGamesCallback(response.Body)
             {
-                callback.JobID = specificSourceTvJobId;
-                specificSourceTvJobId = null;
-            }
-
+                JobID = SpecificSourceTvGamesJobId
+            };
             Client.PostCallback(callback);
         }
         else
         {
-            var callback = new SourceTvGamesCallback(response.Body);
-
-            if (sourceTvJobId != null)
+            var callback = new SourceTvGamesCallback(response.Body)
             {
-                callback.JobID = sourceTvJobId;
-                sourceTvJobId = null;
-            }
-
+                JobID = SourceTvGamesJobId
+            };
             Client.PostCallback(callback);
         }
     }

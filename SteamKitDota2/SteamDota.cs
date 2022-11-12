@@ -56,6 +56,9 @@ public partial class SteamDota : ClientMsgHandler
     {
         _logger = loggerFactory?.CreateLogger(this.GetType());
 
+        SpecificSourceTvGamesJobId = client.GetNextJobID();
+        SourceTvGamesJobId = client.GetNextJobID();
+
         this.gameCoordinator = client.GetHandler<SteamGameCoordinator>()!;
 
         send = new(client, gameCoordinator);
@@ -181,9 +184,6 @@ public partial class SteamDota : ClientMsgHandler
     private void DeclareNotReady(string reason)
     {
         _logger?.LogInformation(Events.NotReady, "Хендлер не готов.");
-
-        specificSourceTvJobId = null;
-        sourceTvJobId = null;
 
         Ready = false;
 
