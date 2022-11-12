@@ -146,6 +146,8 @@ public partial class SteamDota : ClientMsgHandler
                     _logger?.LogInformation(Events.DeadSession, "Сессия закрыта из-за превышения лимита.");
                 }
 
+                Client.PostCallback(new DotaHelloTimeoutCallback());
+
                 await Task.Delay(TimeSpan.FromSeconds(10));
 
                 StartSession(sessionCTS);
