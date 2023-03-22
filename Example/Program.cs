@@ -8,6 +8,7 @@ class Program
 {
     static ILogger logger;
     static SteamClient steamClient;
+    static SteamFriends friends;
     static SteamUser steamUser;
     static CallbackManager callbackMgr;
 
@@ -45,16 +46,22 @@ class Program
         steamClient = new SteamClient();
         callbackMgr = new CallbackManager(steamClient);
 
-        var dotaHandler = new SteamDota(steamClient, callbackMgr, loggerFactory);
+        var dotaHandler = new SteamDota(steamClient, callbackMgr, true, loggerFactory);
         steamClient.AddHandler(dotaHandler);
 
         steamUser = steamClient.GetHandler<SteamUser>()!;
+        friends = steamClient.GetHandler<SteamFriends>()!;
 
         callbackMgr.Subscribe<SteamClient.ConnectedCallback>(OnConnected);
         callbackMgr.Subscribe<SteamClient.DisconnectedCallback>(OnDisconnected);
 
         callbackMgr.Subscribe<SteamUser.LoggedOnCallback>(OnLoggedOn);
         callbackMgr.Subscribe<SteamUser.LoggedOffCallback>(OnLoggedOff);
+
+        callbackMgr.Subscribe<SteamFriends.FriendAddedCallback>(OnFriendsAdded);
+        callbackMgr.Subscribe<SteamFriends.FriendsListCallback>(OnFriendsList);
+
+        callbackMgr.Subscribe<SteamDota.DotaPersonaStateCallback>(OnDotaPersonaState);
 
         Start();
 
@@ -75,13 +82,13 @@ class Program
                 continue;
             }
 
-            var parsedRp = new RichPresenceKv(rp.rich_presence_kv);
+            var parsedRp = new DotaRichPresenceInfo(rp.rich_presence_kv);
 
             System.Console.WriteLine(parsedRp.raw);
 
             if (parsedRp.watchableGameId == null)
             {
-                System.Console.WriteLine($"{nameof(parsedRp.watchableGameId)} null");
+                System.Console.WriteLine($"{nameof(parsedRp.watchableGameId)} null {rp.rich_presence_kv.Length} bytes");
                 continue;
             }
 
@@ -95,6 +102,26 @@ class Program
             }
 
             System.Console.WriteLine($"Игра {game.match_id} Счёт {game.radiant_score}:{game.dire_score}");
+        }
+    }
+
+    private static void OnDotaPersonaState(SteamDota.DotaPersonaStateCallback obj)
+    {
+        System.Console.WriteLine($"{obj.friendId} {obj.playerName} {obj.richPresence?.status}");
+    }
+
+    private static void OnFriendsAdded(SteamFriends.FriendAddedCallback obj)
+    {
+        System.Console.WriteLine($"friend added {obj.SteamID} {obj.Result}");
+    }
+
+    private static void OnFriendsList(SteamFriends.FriendsListCallback obj)
+    {
+        foreach (var friend in obj.FriendList.Where(f => f.Relationship == EFriendRelationship.RequestRecipient))
+        {
+            System.Console.WriteLine($"accepting {friend.SteamID}");
+
+            friends.AddFriend(friend.SteamID);
         }
     }
 
@@ -118,7 +145,7 @@ class Program
             while (isRunning && thatObject == sessionObject)
             {
                 // in order for the callbacks to get routed, they need to be handled by the manager
-                callbackMgr.RunWaitCallbacks(TimeSpan.FromSeconds(1));
+                callbackMgr.RunWaitCallbacks(TimeSpan.FromSeconds(0.5));
             }
         });
     }
