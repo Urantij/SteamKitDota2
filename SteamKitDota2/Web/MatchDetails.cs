@@ -46,6 +46,7 @@ public partial class DotaApi
         }
 
         public const string MatchNotFoundError = "Match ID not found";
+        public const string PracticeNotAvailableError = "Practice matches are not available via GetMatchDetails";
 
         public Player[]? players;
 
