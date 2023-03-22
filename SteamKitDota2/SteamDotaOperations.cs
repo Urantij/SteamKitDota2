@@ -2,6 +2,7 @@ using SteamKit2;
 using SteamKit2.GC;
 using SteamKit2.GC.Dota.Internal;
 using SteamKit2.Internal;
+using SteamKitDota2.More;
 
 namespace SteamKitDota2;
 
@@ -139,5 +140,28 @@ public partial class SteamDota
             JobID = response.TargetJobID
         };
         Client.PostCallback(callback);
+    }
+
+    private void ClientPersonaStateHandler(IPacketMsg packetMsg)
+    {
+        // Всё это необходимо, потому что похожий колбек в SteamFriends даёт не всю возможную информацию.
+        // https://github.com/SteamRE/SteamKit/blob/0d321f232cc10f2755d9a21028ab2160f18c040f/SteamKit2/SteamKit2/Steam/Handlers/SteamFriends/SteamFriends.cs#L880
+        var protobuf = new ClientMsgProtobuf<CMsgClientPersonaState>(packetMsg);
+
+        foreach (var friend in protobuf.Body.friends)
+        {
+            if (friend.gameid != dotaAppId)
+                continue;
+
+            DotaRichPresenceInfo? rpInfo;
+            if (friend.rich_presence.Count > 0)
+            {
+                rpInfo = new(friend.rich_presence);
+            }
+            else rpInfo = null;
+
+            var callback = new DotaPersonaStateCallback(friend.friendid, friend.player_name, rpInfo, friend);
+            Client.PostCallback(callback);
+        }
     }
 }

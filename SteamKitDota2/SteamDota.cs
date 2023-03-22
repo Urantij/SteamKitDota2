@@ -25,7 +25,7 @@ public partial class SteamDota : ClientMsgHandler
     readonly ILogger? _logger;
 
     readonly SteamGameCoordinator gameCoordinator;
-
+    readonly SteamFriends friends;
     readonly IReadOnlyDictionary<uint, Action<IPacketGCMsg>> dispatchMapGC;
 
     /// <summary>
@@ -51,19 +51,25 @@ public partial class SteamDota : ClientMsgHandler
     public bool Ready { get; private set; } = false;
 
     readonly SteamDotaSender send;
+    private readonly bool setPersonaState;
 
-    public SteamDota(SteamClient client, CallbackManager callbackMgr, ILoggerFactory? loggerFactory)
+    /// <param name="setPersonaState">Тру, чтобы получать информацию через ClientPersonaState <see cref="DotaPersonaStateCallback"/></param>
+    public SteamDota(SteamClient client, CallbackManager callbackMgr, bool setPersonaState, ILoggerFactory? loggerFactory)
     {
+        this.setPersonaState = setPersonaState;
+
         _logger = loggerFactory?.CreateLogger(this.GetType());
 
         SpecificSourceTvGamesJobId = client.GetNextJobID();
         SourceTvGamesJobId = client.GetNextJobID();
 
         this.gameCoordinator = client.GetHandler<SteamGameCoordinator>()!;
+        this.friends = client.GetHandler<SteamFriends>()!;
 
         send = new(client, gameCoordinator);
 
         callbackMgr.Subscribe<SteamUser.LoggedOnCallback>(LoggedOnHandler);
+        callbackMgr.Subscribe<SteamUser.AccountInfoCallback>(AccountInfoHandler);
         callbackMgr.Subscribe<SteamClient.DisconnectedCallback>(SteamDisconnectedHandler);
         callbackMgr.Subscribe<SteamGameCoordinator.MessageCallback>(GCMessageHandler);
 
@@ -199,6 +205,15 @@ public partial class SteamDota : ClientMsgHandler
         }
     }
 
+    private void AccountInfoHandler(SteamUser.AccountInfoCallback obj)
+    {
+        if (setPersonaState)
+        {
+            // Требуется, чтобы получать клиентперсонастейт
+            friends.SetPersonaState(EPersonaState.Invisible);
+        }
+    }
+
     private void SteamDisconnectedHandler(SteamClient.DisconnectedCallback callback)
     {
         bool killedSession;
@@ -244,6 +259,10 @@ public partial class SteamDota : ClientMsgHandler
         if (packetMsg.MsgType == EMsg.ClientRichPresenceInfo)
         {
             ClientRichPresenceInfoHandler(packetMsg);
+        }
+        else if (packetMsg.MsgType == EMsg.ClientPersonaState)
+        {
+            ClientPersonaStateHandler(packetMsg);
         }
     }
 
