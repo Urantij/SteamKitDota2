@@ -34,8 +34,10 @@ public class DotaRichPresenceInfo
     public readonly ulong? watchableGameId;
 
     /// <summary>
-    /// "party_id: 27373182836692517 party_state: IN_MATCH open: false members { steam_id: 76561198083316966 }"
-    /// "party_id: 27447041842341340 party_state: IN_MATCH open: false members { steam_id: 76561198074384365 } members { steam_id: 76561198038260924 }"
+    /// "party_id: 27373182836692517 party_state: IN_MATCH open: false members { steam_id: 76561198083316966 }"<br/>
+    /// "party_id: 27447041842341340 party_state: IN_MATCH open: false members { steam_id: 76561198074384365 } members { steam_id: 76561198038260924 }"<br/>
+    /// Из забавного. party_state может быть FINDING_MATCH; IN_MATCH. И инматч наступает раньше, чем меняется status. Сначала пати инматч, но всё ещё поиск, и только потом статус ожидание игроков.<br/>
+    /// И сначала пати становится инматч, потом WatchableGameID становится не 0, и только потом уже приходит статус.
     /// <see cref="party_Members"/>
     /// </summary>
     public readonly string? partyValue;
@@ -61,7 +63,7 @@ public class DotaRichPresenceInfo
     /// "#DOTA_lobby_type_name_ranked"
     /// </summary>
     public readonly string? lobby_type;
-    
+
     public readonly IReadOnlyDictionary<string, string?> raw;
 
     public DotaRichPresenceInfo(Dictionary<string, string?> dict)

@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 
 namespace SteamKitDota2.More;
 
+public record RP_WAIT_FOR_PLAYERS_TO_LOAD(string LobbyType);
 public record RP_HERO_SELECTION(string LobbyType);
 public record RP_STRATEGY_TIME(string LobbyType);
 public record RP_PLAYING_AS(string LobbyType, int Level, string Hero);
@@ -14,6 +15,15 @@ public record RP_PLAYING_AS(string LobbyType, int Level, string Hero);
 /// </summary>
 public static class RpStatusHelper
 {
+    public static RP_WAIT_FOR_PLAYERS_TO_LOAD Parse_DOTA_RP_WAIT_FOR_PLAYERS_TO_LOAD(Dictionary<string, string?> @params)
+    {
+        string? lobbyType = @params["param0"];
+        if (string.IsNullOrEmpty(lobbyType))
+            throw new ArgumentException("param0 is null or empty");
+
+        return new RP_WAIT_FOR_PLAYERS_TO_LOAD(lobbyType);
+    }
+
     public static RP_HERO_SELECTION Parse_DOTA_RP_HERO_SELECTION(Dictionary<string, string?> @params)
     {
         string? lobbyType = @params["param0"];

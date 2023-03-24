@@ -10,6 +10,10 @@
 
 `#DOTA_RP_FINDING_MATCH` Finding A Match
 
+перед выбором героя
+`#DOTA_RP_WAIT_FOR_PLAYERS_TO_LOAD`
+Первый параметр - тип лобби. #demo_hero_mode_name
+
 выбор героя
 `#DOTA_RP_HERO_SELECTION` {%param0%}: Hero Selection
 Первый параметр - тип лобби. #demo_hero_mode_name
