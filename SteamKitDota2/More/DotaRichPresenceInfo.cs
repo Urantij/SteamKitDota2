@@ -14,6 +14,7 @@ public class DotaRichPresenceInfo
     // При входе в игру этот протобаф даёт информацию.ServiceMethodResponse (147)
     /// <summary>
     /// Есть всегда. Вроде как.
+    /// В зависимости от статуса в параметрах лежат разные вещи. Например, #DOTA_RP_PLAYING_AS в первом будет тип лобби (ранкед, демо), во втором уровень, в третьем герой.
     /// "#DOTA_RP_PLAYING_AS"
     /// "#DOTA_RP_INIT", "#DOTA_RP_IDLE", "#DOTA_RP_SPECTATING", "#DOTA_RP_FINDING_MATCH", "#DOTA_RP_GAME_IN_PROGRESS_CUSTOM"
     /// #DOTA_RP_AWAY #DOTA_RP_BOTPRACTICE #DOTA_RP_BUSY #DOTA_RP_CASTING #DOTA_RP_COACHING #DOTA_RP_COOPBOT #DOTA_RP_DISCONNECT #DOTA_RP_FINDING_EVENT_MATCH #DOTA_RP_FINDING_YEAR_BEAST_BRAWL #DOTA_RP_GAME_IN_PROGRESS #DOTA_RP_GAME_IN_PROGRESS_CUSTOM_UNNAMED #DOTA_RP_HERO_SELECTION #DOTA_RP_LEAGUE_MATCH #DOTA_RP_LEAGUE_MATCH_PLAYING_AS #DOTA_RP_LOBBY_CUSTOM #DOTA_RP_LOBBY_CUSTOM_UNNAMED #DOTA_RP_LOOKING_TO_PLAY надоело честно говоря
@@ -60,12 +61,8 @@ public class DotaRichPresenceInfo
     /// "#DOTA_lobby_type_name_ranked"
     /// </summary>
     public readonly string? lobby_type;
-    /// <summary>
-    /// "#npc_dota_hero_earthshaker"
-    /// </summary>
-    public readonly string? hero;
-
-    public readonly Dictionary<string, string?> raw;
+    
+    public readonly IReadOnlyDictionary<string, string?> raw;
 
     public DotaRichPresenceInfo(Dictionary<string, string?> dict)
     {
@@ -97,10 +94,6 @@ public class DotaRichPresenceInfo
                 party_Members = matches.Select(m => ulong.Parse(m.Groups["id"].Value)).ToArray();
             }
         }
-
-        lobby_type = raw.GetValueOrDefault("param0");
-        //var idk = kv["param1"]; //4? //level
-        hero = raw.GetValueOrDefault("param2");
     }
 
     public DotaRichPresenceInfo(List<KV> list)
