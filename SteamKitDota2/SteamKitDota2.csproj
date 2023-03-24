@@ -5,7 +5,7 @@
     <Nullable>enable</Nullable>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>1591</NoWarn>
-    <Version>1.2.0</Version>
+    <Version>1.2.1</Version>
     <Description>
       Dota2 Handler для SteamKit
     </Description>
