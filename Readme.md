@@ -15,13 +15,13 @@
 ### Доступные операции.
 
 `RequestRichPresence` - Запрос информации RichPresence игроков по SteamId64.
-Возвращает массив байт и SteamId64 игрока. Для получения информации из полученных байт есть класс `RichPresenceKv`.
+Возвращает массив байт и SteamId64 игрока. Для получения информации из полученных байт есть класс `DotaRichPresenceInfo`.
 
 `RequestSpecificSourceTvGames` - Запрос информации о матчах по LobbyId.
 
 `RequestSpectateFriendGame` - Запрос информации об игровом сервере игрока по SteamId64.
 
-LobbyId можно получить из `RichPresenceKv` (watchableGameId).
+LobbyId можно получить из `DotaRichPresenceInfo` (watchableGameId).
 
 ## Api
 Также есть класс `DotaApi`, позволяющий обращаться к апи доты.
