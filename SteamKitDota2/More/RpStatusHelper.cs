@@ -15,6 +15,12 @@ public record RP_PLAYING_AS(string LobbyType, int Level, string Hero);
 /// </summary>
 public static class RpStatusHelper
 {
+    /// <summary>
+    /// "#DOTA_RP_WAIT_FOR_PLAYERS_TO_LOAD"
+    /// </summary>
+    /// <param name="params"></param>
+    /// <returns></returns>
+    /// <exception cref="ArgumentException"></exception>
     public static RP_WAIT_FOR_PLAYERS_TO_LOAD Parse_DOTA_RP_WAIT_FOR_PLAYERS_TO_LOAD(IReadOnlyDictionary<string, string?> @params)
     {
         string? lobbyType = @params["param0"];
@@ -24,6 +30,12 @@ public static class RpStatusHelper
         return new RP_WAIT_FOR_PLAYERS_TO_LOAD(lobbyType);
     }
 
+    /// <summary>
+    /// "#DOTA_RP_HERO_SELECTION"
+    /// </summary>
+    /// <param name="params"></param>
+    /// <returns></returns>
+    /// <exception cref="ArgumentException"></exception>
     public static RP_HERO_SELECTION Parse_DOTA_RP_HERO_SELECTION(IReadOnlyDictionary<string, string?> @params)
     {
         string? lobbyType = @params["param0"];
@@ -33,6 +45,12 @@ public static class RpStatusHelper
         return new RP_HERO_SELECTION(lobbyType);
     }
 
+    /// <summary>
+    /// "#DOTA_RP_STRATEGY_TIME"
+    /// </summary>
+    /// <param name="params"></param>
+    /// <returns></returns>
+    /// <exception cref="ArgumentException"></exception>
     public static RP_STRATEGY_TIME Parse_DOTA_RP_STRATEGY_TIME(IReadOnlyDictionary<string, string?> @params)
     {
         string? lobbyType = @params["param0"];
@@ -42,6 +60,12 @@ public static class RpStatusHelper
         return new RP_STRATEGY_TIME(lobbyType);
     }
 
+    /// <summary>
+    /// "#DOTA_RP_PLAYING_AS"
+    /// </summary>
+    /// <param name="params"></param>
+    /// <returns></returns>
+    /// <exception cref="ArgumentException"></exception>
     public static RP_PLAYING_AS Parse_DOTA_RP_PLAYING_AS(IReadOnlyDictionary<string, string?> @params)
     {
         if (!@params.TryGetValue("param0", out var lobbyType) || string.IsNullOrEmpty(lobbyType))
