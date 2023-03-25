@@ -15,12 +15,20 @@ public partial class DotaApi
             public uint hero_id;
             public int leaver_status;
 
+            public int kills;
+            public int deaths;
+            public int assists;
+
             internal Player(KeyValue kv)
             {
                 account_id = kv["account_id"].AsUnsignedInteger();
                 player_slot = kv["player_slot"].AsUnsignedByte();
                 hero_id = kv["hero_id"].AsUnsignedInteger();
                 leaver_status = kv["leaver_status"].AsInteger();
+
+                kills = kv["kills"].AsInteger();
+                deaths = kv["deaths"].AsInteger();
+                assists = kv["assists"].AsInteger();
             }
 
             /// <summary>
@@ -36,8 +44,6 @@ public partial class DotaApi
                 //   0 0 0 0 0 0 0 0
 
                 BitArray array = new(new byte[] { player_slot });
-                //как я понял, в этом массиве биты расположены наоборот от схемы
-
                 bool radiant = !array[7];
                 //тут нужно 3 бита перевести в байт, но мне очень впадлу, потому что это не нужно
 
@@ -51,6 +57,11 @@ public partial class DotaApi
         public Player[]? players;
 
         public bool? radiant_win;
+
+        /// <summary>
+        /// The length of the match, in seconds since the match began.
+        /// </summary>
+        public int duration;
 
         /// <summary>
         /// Unix timestamp of when the match began. In seconds.
@@ -101,6 +112,9 @@ public partial class DotaApi
         /// </summary>
         public int game_mode;
 
+        public int radiant_score;
+        public int dire_score;
+
         internal MatchDetails(KeyValue kv)
         {
             var playersNode = kv["players"];
@@ -125,14 +139,14 @@ public partial class DotaApi
                 error = errorNode.Value;
             }
 
-            var startTimeNode = kv["start_time"];
-            if (startTimeNode.Name != null)
-            {
-                start_time = startTimeNode.AsLong();
-            }
+            duration = kv["duration"].AsInteger();
+            start_time = kv["start_time"].AsLong();
 
             lobby_type = kv["lobby_type"].AsInteger();
             game_mode = kv["game_mode"].AsInteger();
+            
+            radiant_score = kv["radiant_score"].AsInteger();
+            dire_score = kv["dire_score"].AsInteger();
         }
     }
 }
