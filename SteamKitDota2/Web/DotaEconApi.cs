@@ -9,10 +9,29 @@ namespace SteamKitDota2.Web;
 public partial class DotaEconApi : IDisposable
 {
     readonly WebAPI.AsyncInterface econInterface;
+    readonly WebAPI.AsyncInterface betaEconInterface;
 
     public DotaEconApi(string apiKey)
     {
         econInterface = WebAPI.GetAsyncInterface("IEconDOTA2_570", apiKey);
+        betaEconInterface = WebAPI.GetAsyncInterface("IEconDOTA2_205790", apiKey);
+    }
+
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="language">The language to provide item names in. Если не указать, не будет локализации.</param>
+    /// <returns></returns>
+    public async Task<DotaEconApi.GameItem[]> GetGameItemsAsync(string? language = "en")
+    {
+        var requestArgs = new Dictionary<string, object?>
+        {
+            ["language"] = language
+        };
+
+        KeyValue result = await betaEconInterface.CallAsync(HttpMethod.Get, "GetGameItems", version: 1, args: requestArgs);
+
+        return result["items"].Children.Select(child => new GameItem(child)).ToArray();
     }
 
     /// <summary>
@@ -23,13 +42,13 @@ public partial class DotaEconApi : IDisposable
     /// <returns></returns>
     public async Task<DotaEconApi.Hero[]> GetHeroesAsync(string? language = "en", bool? itemizedOnly = null)
     {
-        var matchArgs = new Dictionary<string, object?>
+        var requestArgs = new Dictionary<string, object?>
         {
             ["language"] = language,
             ["itemizedOnly"] = itemizedOnly
         };
 
-        KeyValue result = await econInterface.CallAsync(HttpMethod.Get, "GetHeroes", version: 1, args: matchArgs);
+        KeyValue result = await econInterface.CallAsync(HttpMethod.Get, "GetHeroes", version: 1, args: requestArgs);
 
         return result["heroes"].Children.Select(child => new Hero(child)).ToArray();
     }
