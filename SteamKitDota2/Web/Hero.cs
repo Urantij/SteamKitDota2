@@ -17,6 +17,13 @@ public partial class DotaEconApi
         public string Name { get; set; }
         public string? LocalizedName { get; set; }
 
+        public Hero(int id, string name, string? localizedName)
+        {
+            Id = id;
+            Name = name;
+            LocalizedName = localizedName;
+        }
+
         public Hero(KeyValue keyValue)
         {
             Id = keyValue["id"].AsInteger(-1);

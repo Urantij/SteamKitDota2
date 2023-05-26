@@ -14,12 +14,12 @@ public partial class DotaApi : IDisposable
 
     public async Task<MatchDetails> GetMatchDetails(ulong matchId)
     {
-        var matchArgs = new Dictionary<string, object?>
+        var requestArgs = new Dictionary<string, object?>
         {
             ["match_id"] = matchId
         };
 
-        KeyValue result = await matchInterface.CallAsync(HttpMethod.Get, "GetMatchDetails", version: 1, args: matchArgs);
+        KeyValue result = await matchInterface.CallAsync(HttpMethod.Get, "GetMatchDetails", version: 1, args: requestArgs);
 
         return new MatchDetails(result);
     }
