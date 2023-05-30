@@ -12,7 +12,7 @@ public partial class DotaApi : IDisposable
         matchInterface = WebAPI.GetAsyncInterface("IDOTA2Match_570", apiKey);
     }
 
-    public async Task<MatchDetails> GetMatchDetails(ulong matchId)
+    public async Task<MatchDetails> GetMatchDetailsAsync(ulong matchId)
     {
         var requestArgs = new Dictionary<string, object?>
         {
