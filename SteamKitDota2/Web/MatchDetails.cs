@@ -10,7 +10,13 @@ public partial class DotaApi
     {
         public class Player
         {
+            /// <summary>
+            /// "4294967295" Если скрыт.
+            /// </summary>
             public uint account_id;
+            /// <summary>
+            /// Не номер слота в команде. Эта штука должна парситься.
+            /// </summary>
             public byte player_slot;
             public uint hero_id;
             public int leaver_status;
@@ -18,6 +24,12 @@ public partial class DotaApi
             public int kills;
             public int deaths;
             public int assists;
+
+            /// <summary>
+            /// При проверке 0 это редиант.
+            /// </summary>
+            public int team_number;
+            public int team_slot;
 
             internal Player(KeyValue kv)
             {
@@ -29,6 +41,9 @@ public partial class DotaApi
                 kills = kv["kills"].AsInteger();
                 deaths = kv["deaths"].AsInteger();
                 assists = kv["assists"].AsInteger();
+
+                team_number = kv["team_number"].AsInteger();
+                team_slot = kv["team_slot"].AsInteger();
             }
 
             /// <summary>
