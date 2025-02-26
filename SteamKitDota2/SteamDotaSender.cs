@@ -2,6 +2,7 @@ using SteamKit2;
 using SteamKit2.GC;
 using SteamKit2.GC.Dota.Internal;
 using SteamKit2.Internal;
+using CMsgClientHello = SteamKit2.GC.Dota.Internal.CMsgClientHello;
 
 namespace SteamKitDota2;
 
