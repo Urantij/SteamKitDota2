@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using SteamKit2.Internal;
 using static SteamKit2.Internal.CMsgClientPersonaState.Friend;
 
 namespace SteamKitDota2.More;
@@ -20,6 +21,7 @@ public class DotaRichPresenceInfo
     /// #DOTA_RP_AWAY #DOTA_RP_BOTPRACTICE #DOTA_RP_BUSY #DOTA_RP_CASTING #DOTA_RP_COACHING #DOTA_RP_COOPBOT #DOTA_RP_DISCONNECT #DOTA_RP_FINDING_EVENT_MATCH #DOTA_RP_FINDING_YEAR_BEAST_BRAWL #DOTA_RP_GAME_IN_PROGRESS #DOTA_RP_GAME_IN_PROGRESS_CUSTOM_UNNAMED #DOTA_RP_HERO_SELECTION #DOTA_RP_LEAGUE_MATCH #DOTA_RP_LEAGUE_MATCH_PLAYING_AS #DOTA_RP_LOBBY_CUSTOM #DOTA_RP_LOBBY_CUSTOM_UNNAMED #DOTA_RP_LOOKING_TO_PLAY надоело честно говоря
     /// </summary>
     public readonly string? status;
+
     /// <summary>
     /// Есть всегда. Вроде как.
     /// И вроде как всегда равен <see cref="status"/>
@@ -98,16 +100,24 @@ public class DotaRichPresenceInfo
         }
     }
 
+    public DotaRichPresenceInfo(List<CMsgClientRichPresenceInfo.KV> list)
+        : this(CreateDict(list))
+    {
+    }
+
     public DotaRichPresenceInfo(List<KV> list)
         : this(CreateDict(list))
     {
-
     }
 
     public DotaRichPresenceInfo(byte[] kv_bytes)
         : this(CreateDict(kv_bytes))
     {
+    }
 
+    static Dictionary<string, string?> CreateDict(List<CMsgClientRichPresenceInfo.KV> list)
+    {
+        return list.ToDictionary(key => key.key, value => value.ShouldSerializevalue() ? value.value : null);
     }
 
     static Dictionary<string, string?> CreateDict(List<KV> list)
