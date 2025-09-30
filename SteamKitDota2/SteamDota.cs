@@ -80,6 +80,8 @@ public partial class SteamDota : ClientMsgHandler
             { (uint)EGCBaseClientMsg.k_EMsgGCClientConnectionStatus, ClientConnectionStatusHandler },
             { (uint)EDOTAGCMsg.k_EMsgGCSpectateFriendGameResponse, SpectateFriendGameResponseHandler },
             { (uint)EDOTAGCMsg.k_EMsgGCToClientFindTopSourceTVGamesResponse, FindTopSourceTvGamesHandler },
+            { (uint)EDOTAGCMsg.k_EMsgDOTAGetPlayerMatchHistoryResponse, GetPlayerMatchHistoryResponseHandler },
+            { (uint)EDOTAGCMsg.k_EMsgGCMatchDetailsResponse, MatchDetailsResponseHandler }
         };
     }
 
