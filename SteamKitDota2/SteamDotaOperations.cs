@@ -156,7 +156,7 @@ public partial class SteamDota
             DotaRichPresenceInfo? rpInfo;
             if (friend.rich_presence.Count > 0)
             {
-                rpInfo = new(friend.rich_presence);
+                rpInfo = new DotaRichPresenceInfo(friend.rich_presence);
             }
             else rpInfo = null;
 

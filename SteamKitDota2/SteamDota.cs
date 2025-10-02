@@ -17,44 +17,61 @@ public partial class SteamDota : ClientMsgHandler
     /// Через какое количество времени повторить попытку отправить хелло.
     /// </summary>
     public static readonly TimeSpan helloRepeatDelay = TimeSpan.FromSeconds(7.5);
+
     /// <summary>
     /// После этого количества попыток отправить хелло будет выдан колбек <see cref="DotaHelloTimeoutCallback"/>
     /// </summary>
     public static readonly int helloRetriesLimit = 5;
 
-    readonly ILogger? _logger;
+    private readonly ILogger? _logger;
 
-    readonly SteamGameCoordinator gameCoordinator;
-    readonly SteamFriends friends;
-    readonly IReadOnlyDictionary<uint, Action<IPacketGCMsg>> dispatchMapGC;
+    private readonly SteamGameCoordinator gameCoordinator;
+    private readonly SteamFriends friends;
+    private readonly IReadOnlyDictionary<uint, Action<IPacketGCMsg>> dispatchMapGC;
 
     /// <summary>
     /// Сессия может вылететь из нескольких мест.
     /// И значит, может начаться в нескольких местах.
     /// </summary>
-    readonly object sessionLocker = new();
+    private readonly Lock _helloSpamSessionLocker = new();
+
+    // Клиент должен долбить сервера стима, процесс долбления начинается с плей сообщения, продолжается спамом хелло сообщениями
+    // Этот процесс называется сессия
+    // Затем есть 3 варианта
+    // 1. Мы получаем вход. Спам завершаем, работаем
+    // 2. Мы не получаем вход. Кидаем таймаут колбек. Если текущая сессия не была отменена, начинаем новую
+    // 3. Дисконнект. Всё бросаем.
+
+    // Клиент начинает долбёжку, когда делается вход, и когда приходит пакетик, что вы больше не в игре.
+    // Сессия есть, если хелолупидентити не нул. Токен отмены может висеть.
+    // После дисконнекта ВСЕГДА сессии быть не должно. Текущая сессия будет отменена, и если она увидит, что стс нулл, значит, ниче делать не надо.
 
     /// <summary>
     /// Токен даёт потокам следить, какая сейчас сессия.
     /// Сессия начинается с send.Play.
-    /// Заканчивается, когда клиент вылетает, или когда заканчивается лимит попыток подключиться.
+    /// Отменяется, когда клиент вылетает, или когда начинается новая сессия.
+    /// Новая сессия начинается, когда клиент подключается и когда происходит дота таймаут.
+    /// Если нулл, значит сессия ещё не была запущена в этом коннекте. После дисконнекта становится нулл.
     /// </summary>
-    CancellationTokenSource? sessionCancellationSource = null;
+    private CancellationTokenSource? _helloSpamSessionCts = null;
+
     /// <summary>
-    /// Позволяет следить за вмешательство в хеллолуп
+    /// Позволяет следить за вмешательство в хеллолуп.
+    /// Если не нулл, спам луп запущен.
     /// </summary>
-    object? helloLoopIdentity = null;
+    private object? _helloSpamSessionIdentity = null;
 
     /// <summary>
     /// Подключен к доте и готов к выполнению операций.
     /// </summary>
     public bool Ready { get; private set; } = false;
 
-    readonly SteamDotaSender send;
+    private readonly SteamDotaSender send;
     private readonly bool setPersonaState;
 
     /// <param name="setPersonaState">Тру, чтобы получать информацию через ClientPersonaState <see cref="DotaPersonaStateCallback"/></param>
-    public SteamDota(SteamClient client, CallbackManager callbackMgr, bool setPersonaState, ILoggerFactory? loggerFactory)
+    public SteamDota(SteamClient client, CallbackManager callbackMgr, bool setPersonaState,
+        ILoggerFactory? loggerFactory)
     {
         this.setPersonaState = setPersonaState;
 
@@ -66,7 +83,7 @@ public partial class SteamDota : ClientMsgHandler
         this.gameCoordinator = client.GetHandler<SteamGameCoordinator>()!;
         this.friends = client.GetHandler<SteamFriends>()!;
 
-        send = new(client, gameCoordinator);
+        send = new SteamDotaSender(client, gameCoordinator);
 
         callbackMgr.Subscribe<SteamUser.LoggedOnCallback>(LoggedOnHandler);
         callbackMgr.Subscribe<SteamUser.AccountInfoCallback>(AccountInfoHandler);
@@ -88,38 +105,26 @@ public partial class SteamDota : ClientMsgHandler
 
     /// <summary>
     /// Отправляет плей, а затем начинает дудосить сервер приветами, пока не получит ответ или не запнётся о лимит.
-    /// Так как токен меняется только здесь, чтобы предотвратить запуск нескольких сессий, нужно дать токен предыдущей сессии.
-    /// И если он равен текущему токену, значит, это первый заход сюда с просьбой сделать новую сессию.
+    /// Если спам сессия уже идёт, ниче не делает.
+    /// Не делает проверку на онлайн клиента.
     /// </summary>
-    /// <param name="prevSessionCTS">Токен предыдущей сессии</param>
-    private void StartSession(CancellationTokenSource? prevSessionCTS)
+    private void StartSession(bool firstTime)
     {
-        CancellationTokenSource thisCTS;
-        bool killedSession;
-        lock (sessionLocker)
+        CancellationTokenSource thisCts;
+        object thisIdentity;
+        lock (_helloSpamSessionLocker)
         {
-            if (sessionCancellationSource != null)
-            {
-                if (sessionCancellationSource != prevSessionCTS)
-                {
-                    // Кто-то уже попытался запустить новую сессию из старой.
-                    return;
-                }
+            if (_helloSpamSessionIdentity != null)
+                return;
 
-                killedSession = !sessionCancellationSource.IsCancellationRequested;
-                try { sessionCancellationSource.Cancel(); } catch { }
-                sessionCancellationSource.Dispose();
-            }
-            else killedSession = false;
+            // Если сессия создаётся из коннекта не в первый раз, значит стс токен уже должен быть
+            // если его нет, значит, был вылет, и вход должен быть первым.
+            if (!firstTime && _helloSpamSessionCts == null)
+                return;
 
-            thisCTS = sessionCancellationSource = new();
+            thisCts = _helloSpamSessionCts = new CancellationTokenSource();
+            thisIdentity = _helloSpamSessionIdentity = new object();
         }
-        if (killedSession)
-        {
-            _logger?.LogInformation(Events.DeadSession, "Сессия закрыта перед новой.");
-        }
-
-        object thisIdentity = helloLoopIdentity = new object();
 
         _logger?.LogInformation(Events.NewSession, "Начинаем новую сессию.");
 
@@ -127,39 +132,63 @@ public partial class SteamDota : ClientMsgHandler
 
         Task.Run(async () =>
         {
-            await Task.Delay(TimeSpan.FromSeconds(1));
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(1), thisCts.Token);
+            }
+            catch
+            {
+                return;
+            }
 
-            await HelloLoopAsync(thisIdentity, thisCTS);
+            await HelloLoopAsync(thisIdentity, thisCts);
         });
     }
 
-    async Task HelloLoopAsync(object identity, CancellationTokenSource sessionCTS)
+    private async Task HelloLoopAsync(object identity, CancellationTokenSource sessionCts)
     {
         int helloAttempts = 0;
 
         // Пока тот же хеллолуп, и пока та же сессия
-        while (identity == helloLoopIdentity && !sessionCTS.IsCancellationRequested)
+        while (true)
         {
+            lock (_helloSpamSessionLocker)
+            {
+                if (_helloSpamSessionIdentity != identity || sessionCts.IsCancellationRequested)
+                    return;
+            }
+
             if (helloAttempts > helloRetriesLimit)
             {
-                bool killedSession;
-                lock (sessionLocker)
-                {
-                    killedSession = !sessionCTS.IsCancellationRequested;
+                // идентити сессии не сбрасываем, чтобы никто другой не начал сессию, пока мы не подождали 10 сек
+                // если будет выход из сети, то идентити там уйдёт в ноль с отменой токена.
 
-                    try { sessionCTS.Cancel(); } catch { }
-                    sessionCTS.Dispose();
-                }
-                if (killedSession)
-                {
-                    _logger?.LogInformation(Events.DeadSession, "Сессия закрыта из-за превышения лимита.");
-                }
+                _logger?.LogInformation(Events.DeadSession, "Сессия закрыта из-за превышения лимита.");
 
                 Client.PostCallback(new DotaHelloTimeoutCallback());
 
-                await Task.Delay(TimeSpan.FromSeconds(10));
+                // Если за 10 секунд ниче не изменилось, создаём новую сессию
+                // Если токен отменили, либо клиент вылетел, и нам тут больше нечего делать вообще
+                try
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(10), sessionCts.Token);
+                }
+                catch
+                {
+                    return;
+                }
 
-                StartSession(sessionCTS);
+                lock (_helloSpamSessionLocker)
+                {
+                    if (_helloSpamSessionCts == null || _helloSpamSessionCts.IsCancellationRequested)
+                        return;
+                    _helloSpamSessionIdentity = null;
+                }
+
+                // Если клиент не вырубили вручную выше, то ниче другое по сути не запустит сессию
+                // Сессия запускается при входе и когда приходит статус ниже. статус не пришёл на вход - на вылет тоже не придёт
+
+                StartSession(false);
                 return;
             }
 
@@ -170,9 +199,12 @@ public partial class SteamDota : ClientMsgHandler
 
             try
             {
-                await Task.Delay(helloRepeatDelay, sessionCTS.Token);
+                await Task.Delay(helloRepeatDelay, sessionCts.Token);
             }
-            catch { return; }
+            catch
+            {
+                return;
+            }
         }
     }
 
@@ -180,7 +212,10 @@ public partial class SteamDota : ClientMsgHandler
     {
         _logger?.LogInformation(Events.Ready, "Хендлер готов.");
 
-        helloLoopIdentity = null;
+        lock (_helloSpamSessionLocker)
+        {
+            _helloSpamSessionIdentity = null;
+        }
 
         Ready = true;
 
@@ -189,7 +224,7 @@ public partial class SteamDota : ClientMsgHandler
 
     private void DeclareNotReady(string reason)
     {
-        _logger?.LogInformation(Events.NotReady, "Хендлер не готов.");
+        _logger?.LogInformation(Events.NotReady, "Хендлер не готов. ({reason})", reason);
 
         Ready = false;
 
@@ -197,11 +232,12 @@ public partial class SteamDota : ClientMsgHandler
     }
 
     #region Received Callbacks
+
     private void LoggedOnHandler(SteamUser.LoggedOnCallback callback)
     {
         if (callback.Result == EResult.OK)
         {
-            StartSession(null);
+            StartSession(true);
         }
     }
 
@@ -217,18 +253,28 @@ public partial class SteamDota : ClientMsgHandler
     private void SteamDisconnectedHandler(SteamClient.DisconnectedCallback callback)
     {
         bool killedSession;
-        lock (sessionLocker)
+        lock (_helloSpamSessionLocker)
         {
-            if (sessionCancellationSource != null)
+            if (_helloSpamSessionCts != null)
             {
-                killedSession = !sessionCancellationSource.IsCancellationRequested;
+                killedSession = !_helloSpamSessionCts.IsCancellationRequested;
 
-                try { sessionCancellationSource.Cancel(); } catch { }
-                sessionCancellationSource.Dispose();
-                sessionCancellationSource = null;
+                try
+                {
+                    _helloSpamSessionCts.Cancel();
+                }
+                catch
+                {
+                }
+
+                _helloSpamSessionCts.Dispose();
+                _helloSpamSessionCts = null;
             }
             else killedSession = false;
+
+            _helloSpamSessionIdentity = null;
         }
+
         if (killedSession)
         {
             _logger?.LogInformation(Events.DeadSession, "Сессия закрыта, стимклиент закрылся.");
@@ -252,6 +298,7 @@ public partial class SteamDota : ClientMsgHandler
 
         handler.Invoke(payloadMessage);
     }
+
     #endregion
 
     public override void HandleMsg(IPacketMsg packetMsg)
@@ -267,6 +314,7 @@ public partial class SteamDota : ClientMsgHandler
     }
 
     #region GC Callbacks
+
     private void WelcomeHandler(IPacketGCMsg payloadMessage)
     {
         _logger?.LogDebug(Events.Welcome, "Добро пожаловать. {ready}", Ready);
@@ -299,13 +347,12 @@ public partial class SteamDota : ClientMsgHandler
         {
             if (Ready)
             {
-                var cts = sessionCancellationSource;
-
                 DeclareNotReady($"GCConnectionStatus: {status.Body.status}");
 
-                StartSession(cts);
+                StartSession(false);
             }
         }
     }
+
     #endregion
 }
