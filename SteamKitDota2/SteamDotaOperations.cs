@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using SteamKit2;
 using SteamKit2.GC;
 using SteamKit2.GC.Dota.Internal;
@@ -8,6 +9,13 @@ namespace SteamKitDota2;
 
 // Здесь лежат вещи, которые не нужны для жизни хендлера.
 
+// я не виноват
+class RequestMatchJobHand(ulong matchId, AsyncJob<SteamDota.MatchDetailsCallback> job)
+{
+    public ulong MatchId { get; } = matchId;
+    public AsyncJob<SteamDota.MatchDetailsCallback> Job { get; } = job;
+}
+
 public partial class SteamDota
 {
     // Эти протобафы не поддерживают установку JobId
@@ -17,10 +25,15 @@ public partial class SteamDota
     readonly JobID SpecificSourceTvGamesJobId;
     readonly JobID SourceTvGamesJobId;
 
+    // мы живём кансером, мы управляем кансер, мы и есть кансер
+    private ulong? currentHistoryJobId = null;
+
     /// <summary>
     /// Я НЕ ЗНАЮ, Я ЗАБЫЛ ПРОВЕРИТЬ, КАК ЭТОТ АЙДИ РАБОТАЕТ.
     /// </summary>
     private uint requestId = 0;
+
+    private readonly List<RequestMatchJobHand> _requestMatchJobHands = [];
 
     /// <summary>
     /// Максимум 10 результатов?
@@ -106,9 +119,6 @@ public partial class SteamDota
 
         return job;
     }
-    
-    // мы живём кансером, мы управляем кансер, мы и есть кансер
-    private ulong? currentHistoryJobId = null;
 
     /// <summary>
     /// Просит 20 матчей из истории игрока.
@@ -143,7 +153,7 @@ public partial class SteamDota
         var job = new AsyncJob<DotaPlayerHistoryCallback>(Client, protobuf.SourceJobID);
 
         currentHistoryJobId = protobuf.SourceJobID.Value;
-        
+
         // если в ЭТОМ моменте заменить сурс жоб айди, то создание жоба не вылетит бота. вот так.
         // но тогда сурс будет дефолтным значением и он не сможет при ловле протобафа респонса жоб тригернуть
         // я проста не понимаю нахуй
@@ -151,17 +161,14 @@ public partial class SteamDota
         // если сделать это присваивание ПЕРЕД созданием жоба, вылеты будут. ну это типа дефолтное значение, наверн должно быть
         // то есть он крашит, если получает ответ с нестандартым жоб айди?
         protobuf.ProtoHeader.job_id_source = protobuf.ProtoHeader.job_id_target;
-        
+
         gameCoordinator.Send(protobuf, dotaAppId);
 
         return job;
     }
 
     /// <summary>
-    /// На данный момент не работает.
-    /// Стим возвращает нужный ответ, но стимкит при попытке его десериализовать жидко обсирается.
-    /// Внутреннее говно стимкита слишком сложное, чтобы я в 2 ночи его понял, да и мне в целом похуй. Может пофиксят когда нибудь.
-    /// Мастер ветка проблему не решила
+    /// не запрашивай уже запрошенный матч, пока первый жоб не закончит работу.
     /// </summary>
     /// <param name="matchId"></param>
     /// <returns></returns>
@@ -170,15 +177,32 @@ public partial class SteamDota
         var protobuf =
             new ClientGCMsgProtobuf<CMsgGCMatchDetailsRequest>((uint)EDOTAGCMsg.k_EMsgGCMatchDetailsRequest)
             {
-                SourceJobID = Client.GetNextJobID(),
+                // клиент использует жоб айди, но местный десериализатор ломается, если респонс имеет сурс жоб айди.
+                // менять там его без рефлексии нельзя, так что вот
+                // SourceJobID = Client.GetNextJobID(),
             };
 
         protobuf.Body.match_id = matchId;
-        
+
         // в дота клиенте реалм 1, по дефолту ноль. и так работает...
         // protobuf.Header.Proto.realm = 1;
 
         var job = new AsyncJob<MatchDetailsCallback>(Client, protobuf.SourceJobID);
+
+        var hand = new RequestMatchJobHand(matchId, job);
+
+        job.ToTask().ContinueWith(_ =>
+        {
+            lock (_requestMatchJobHands)
+            {
+                _requestMatchJobHands.Remove(hand);
+            }
+        }, TaskContinuationOptions.ExecuteSynchronously); // просто так синхронность
+
+        lock (_requestMatchJobHands)
+        {
+            _requestMatchJobHands.Add(hand);
+        }
 
         gameCoordinator.Send(protobuf, dotaAppId);
 
@@ -223,7 +247,7 @@ public partial class SteamDota
     {
         ulong jobId = currentHistoryJobId.Value;
         currentHistoryJobId = null;
-        
+
         var response = new ClientGCMsgProtobuf<CMsgDOTAGetPlayerMatchHistoryResponse>(payloadMessage);
 
         var callback = new DotaPlayerHistoryCallback(response.Body)
@@ -236,9 +260,25 @@ public partial class SteamDota
     private void MatchDetailsResponseHandler(IPacketGCMsg payloadMessage)
     {
         var response = new ClientGCMsgProtobuf<CMsgGCMatchDetailsResponse>(payloadMessage);
+
+        RequestMatchJobHand? hand = null;
+
+        lock (_requestMatchJobHands)
+        {
+            hand = _requestMatchJobHands.FirstOrDefault(h => h.MatchId == response.Body.match.match_id);
+            if (hand != null)
+                _requestMatchJobHands.Remove(hand);
+        }
+
+        if (hand == null)
+        {
+            _logger?.LogWarning("Пришёл мач дитейлс который не ждали {id}", response.Body.match.match_id);
+            return;
+        }
+
         var callback = new MatchDetailsCallback(response.Body)
         {
-            JobID = response.TargetJobID
+            JobID = hand.Job.JobID
         };
         Client.PostCallback(callback);
     }
