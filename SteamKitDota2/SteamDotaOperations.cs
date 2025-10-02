@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using SteamKit2;
 using SteamKit2.GC;
 using SteamKit2.GC.Dota.Internal;
@@ -8,6 +9,13 @@ namespace SteamKitDota2;
 
 // Здесь лежат вещи, которые не нужны для жизни хендлера.
 
+// я не виноват
+class RequestMatchJobHand(ulong matchId, AsyncJob<SteamDota.MatchDetailsCallback> job)
+{
+    public ulong MatchId { get; } = matchId;
+    public AsyncJob<SteamDota.MatchDetailsCallback> Job { get; } = job;
+}
+
 public partial class SteamDota
 {
     // Эти протобафы не поддерживают установку JobId
@@ -16,6 +24,16 @@ public partial class SteamDota
     // При этом RequestSpecificSourceTvGames возвращает 2 ответа. Один нужный и один общий.
     readonly JobID SpecificSourceTvGamesJobId;
     readonly JobID SourceTvGamesJobId;
+
+    // мы живём кансером, мы управляем кансер, мы и есть кансер
+    private ulong? currentHistoryJobId = null;
+
+    /// <summary>
+    /// Я НЕ ЗНАЮ, Я ЗАБЫЛ ПРОВЕРИТЬ, КАК ЭТОТ АЙДИ РАБОТАЕТ.
+    /// </summary>
+    private uint requestId = 0;
+
+    private readonly List<RequestMatchJobHand> _requestMatchJobHands = [];
 
     /// <summary>
     /// Максимум 10 результатов?
@@ -28,7 +46,9 @@ public partial class SteamDota
     /// <returns></returns>
     public AsyncJob<SourceTvGamesCallback> RequestSpecificSourceTvGames(params ulong[] lobbyIds)
     {
-        var protobuf = new ClientGCMsgProtobuf<CMsgClientToGCFindTopSourceTVGames>((uint)EDOTAGCMsg.k_EMsgClientToGCFindTopSourceTVGames);
+        var protobuf =
+            new ClientGCMsgProtobuf<CMsgClientToGCFindTopSourceTVGames>(
+                (uint)EDOTAGCMsg.k_EMsgClientToGCFindTopSourceTVGames);
 
         protobuf.Body.lobby_ids.AddRange(lobbyIds);
         protobuf.Body.start_game = 0;
@@ -48,7 +68,9 @@ public partial class SteamDota
     /// <returns></returns>
     public AsyncJob<SourceTvGamesCallback> RequestSourceTvGames()
     {
-        var protobuf = new ClientGCMsgProtobuf<CMsgClientToGCFindTopSourceTVGames>((uint)EDOTAGCMsg.k_EMsgClientToGCFindTopSourceTVGames);
+        var protobuf =
+            new ClientGCMsgProtobuf<CMsgClientToGCFindTopSourceTVGames>(
+                (uint)EDOTAGCMsg.k_EMsgClientToGCFindTopSourceTVGames);
         protobuf.Body.start_game = 0;
 
         var job = new AsyncJob<SourceTvGamesCallback>(Client, SourceTvGamesJobId);
@@ -98,6 +120,95 @@ public partial class SteamDota
         return job;
     }
 
+    /// <summary>
+    /// Просит 20 матчей из истории игрока.
+    /// Игрок должен быть в списке друзей бота.
+    /// Если друга не будет, команда просто уйдёт в таймаут через какое то время.
+    /// Алсо не поддерживает несколько одновременных запросов, потому что стимкит момент.
+    /// <param name="accountId">steamid3 так называемый. [U:1:87654571] 87654571 отсюда</param>
+    /// </summary>
+    public AsyncJob<DotaPlayerHistoryCallback> RequestMatchHistory(uint accountId, ulong startAtMatchId = 0,
+        bool includePracticeMatches = false,
+        bool includeCustomGames = true, bool includeEventGames = true)
+    {
+        var protobuf =
+            new ClientGCMsgProtobuf<CMsgDOTAGetPlayerMatchHistory>((uint)EDOTAGCMsg.k_EMsgDOTAGetPlayerMatchHistory)
+            {
+                SourceJobID = Client.GetNextJobID(),
+            };
+        protobuf.Body.account_id = accountId;
+        protobuf.Body.start_at_match_id = startAtMatchId;
+        protobuf.Body.matches_requested = 20;
+        protobuf.Body.request_id = requestId++;
+        protobuf.Body.include_practice_matches = includePracticeMatches;
+        protobuf.Body.include_custom_games = includeCustomGames;
+        protobuf.Body.include_event_games = includeEventGames;
+
+        // в дота клиенте реалм 1, по дефолту ноль. и так работает...
+        // protobuf.Header.Proto.realm = 1;
+
+        // по какой то нахуй причине просто создание этого джоба приведёт к вылету бота когда придёт ответ
+        // если не создавать жоб и всё делать также, всё будет нормально))) здорово
+        // алсо дота клиент не юзает сурсжоб айди в этом сообщении, но поддерживает
+        var job = new AsyncJob<DotaPlayerHistoryCallback>(Client, protobuf.SourceJobID);
+
+        currentHistoryJobId = protobuf.SourceJobID.Value;
+
+        // если в ЭТОМ моменте заменить сурс жоб айди, то создание жоба не вылетит бота. вот так.
+        // но тогда сурс будет дефолтным значением и он не сможет при ловле протобафа респонса жоб тригернуть
+        // я проста не понимаю нахуй
+        // я просто не понимаю
+        // если сделать это присваивание ПЕРЕД созданием жоба, вылеты будут. ну это типа дефолтное значение, наверн должно быть
+        // то есть он крашит, если получает ответ с нестандартым жоб айди?
+        protobuf.ProtoHeader.job_id_source = protobuf.ProtoHeader.job_id_target;
+
+        gameCoordinator.Send(protobuf, dotaAppId);
+
+        return job;
+    }
+
+    /// <summary>
+    /// не запрашивай уже запрошенный матч, пока первый жоб не закончит работу.
+    /// </summary>
+    /// <param name="matchId"></param>
+    /// <returns></returns>
+    public AsyncJob<MatchDetailsCallback> RequestMatchDetails(ulong matchId)
+    {
+        var protobuf =
+            new ClientGCMsgProtobuf<CMsgGCMatchDetailsRequest>((uint)EDOTAGCMsg.k_EMsgGCMatchDetailsRequest)
+            {
+                // клиент использует жоб айди, но местный десериализатор ломается, если респонс имеет сурс жоб айди.
+                // менять там его без рефлексии нельзя, так что вот
+                // SourceJobID = Client.GetNextJobID(),
+            };
+
+        protobuf.Body.match_id = matchId;
+
+        // в дота клиенте реалм 1, по дефолту ноль. и так работает...
+        // protobuf.Header.Proto.realm = 1;
+
+        var job = new AsyncJob<MatchDetailsCallback>(Client, protobuf.SourceJobID);
+
+        var hand = new RequestMatchJobHand(matchId, job);
+
+        job.ToTask().ContinueWith(_ =>
+        {
+            lock (_requestMatchJobHands)
+            {
+                _requestMatchJobHands.Remove(hand);
+            }
+        }, TaskContinuationOptions.ExecuteSynchronously); // просто так синхронность
+
+        lock (_requestMatchJobHands)
+        {
+            _requestMatchJobHands.Add(hand);
+        }
+
+        gameCoordinator.Send(protobuf, dotaAppId);
+
+        return job;
+    }
+
     private void SpectateFriendGameResponseHandler(IPacketGCMsg payloadMessage)
     {
         var response = new ClientGCMsgProtobuf<CMsgSpectateFriendGameResponse>(payloadMessage);
@@ -130,6 +241,46 @@ public partial class SteamDota
             };
             Client.PostCallback(callback);
         }
+    }
+
+    private void GetPlayerMatchHistoryResponseHandler(IPacketGCMsg payloadMessage)
+    {
+        ulong jobId = currentHistoryJobId.Value;
+        currentHistoryJobId = null;
+
+        var response = new ClientGCMsgProtobuf<CMsgDOTAGetPlayerMatchHistoryResponse>(payloadMessage);
+
+        var callback = new DotaPlayerHistoryCallback(response.Body)
+        {
+            JobID = jobId
+        };
+        Client.PostCallback(callback);
+    }
+
+    private void MatchDetailsResponseHandler(IPacketGCMsg payloadMessage)
+    {
+        var response = new ClientGCMsgProtobuf<CMsgGCMatchDetailsResponse>(payloadMessage);
+
+        RequestMatchJobHand? hand = null;
+
+        lock (_requestMatchJobHands)
+        {
+            hand = _requestMatchJobHands.FirstOrDefault(h => h.MatchId == response.Body.match.match_id);
+            if (hand != null)
+                _requestMatchJobHands.Remove(hand);
+        }
+
+        if (hand == null)
+        {
+            _logger?.LogWarning("Пришёл мач дитейлс который не ждали {id}", response.Body.match.match_id);
+            return;
+        }
+
+        var callback = new MatchDetailsCallback(response.Body)
+        {
+            JobID = hand.Job.JobID
+        };
+        Client.PostCallback(callback);
     }
 
     private void ClientRichPresenceInfoHandler(IPacketMsg payloadMessage)
