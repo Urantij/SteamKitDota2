@@ -115,6 +115,13 @@ public class DotaRichPresenceInfo
     {
     }
 
+    public static DotaRichPresenceInfo FromRichPresence(CMsgClientRichPresenceInfo.RichPresence rp)
+    {
+        return rp.rich_presence_kv?.Length > 0
+            ? new DotaRichPresenceInfo(rp.rich_presence_kv)
+            : new DotaRichPresenceInfo(rp.rich_presense);
+    }
+
     static Dictionary<string, string?> CreateDict(List<CMsgClientRichPresenceInfo.KV> list)
     {
         return list.ToDictionary(key => key.key, value => value.ShouldSerializevalue() ? value.value : null);
