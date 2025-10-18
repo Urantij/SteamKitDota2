@@ -112,6 +112,8 @@ public partial class SteamDota : ClientMsgHandler
     /// </summary>
     private void StartSession(bool firstTime)
     {
+        ResetRequestId();
+
         CancellationTokenSource thisCts;
         object thisIdentity;
         lock (_helloSpamSessionLocker)

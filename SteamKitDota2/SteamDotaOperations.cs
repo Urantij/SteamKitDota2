@@ -33,6 +33,8 @@ public partial class SteamDota
     /// </summary>
     private uint requestId = 0;
 
+    private void ResetRequestId() => requestId = 0;
+
     private readonly List<RequestMatchJobHand> _requestMatchJobHands = [];
 
     /// <summary>
@@ -187,7 +189,10 @@ public partial class SteamDota
         // в дота клиенте реалм 1, по дефолту ноль. и так работает...
         // protobuf.Header.Proto.realm = 1;
 
-        var job = new AsyncJob<MatchDetailsCallback>(Client, protobuf.SourceJobID);
+        // Там какой то дефолтный жоб айди, и если так юзать, то он смешивается с другими колбеками...
+        JobID jobId = Client.GetNextJobID(); // protobuf.SourceJobID
+
+        var job = new AsyncJob<MatchDetailsCallback>(Client, jobId);
 
         var hand = new RequestMatchJobHand(matchId, job);
 
